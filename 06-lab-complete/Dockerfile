@@ -34,6 +34,9 @@ RUN chown -R agent:agent /app
 USER agent
 
 ENV PATH=/home/agent/.local/bin:$PATH
+# Ensure Python finds the --user packages copied from the builder
+# (agent's home is /app, so user-site would otherwise resolve to /app/.local)
+ENV PYTHONUSERBASE=/home/agent/.local
 ENV PYTHONPATH=/app
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
