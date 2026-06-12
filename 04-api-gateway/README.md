@@ -101,3 +101,66 @@ Request
 1. Khi nào nên dùng API Key vs JWT vs OAuth2?
 2. Rate limit nên đặt bao nhiêu request/phút cho một AI agent?
 3. Nếu API key bị lộ, bạn phát hiện và xử lý như thế nào?
+
+---
+
+## Trả lời câu hỏi thảo luận (Answers)
+
+**Q1 — When to use API Key vs JWT vs OAuth2?**
+
+They solve the same question ("are you allowed in?") at increasing levels of
+sophistication:
+
+| Method | What it is | Best for | Trade-off |
+|--------|-----------|----------|-----------|
+| **API Key** | One shared secret string in a header (`X-API-Key`) | Internal tools, B2B, server-to-server, MVPs | No per-user identity, no expiry, no roles — if leaked, anyone can use it until you rotate it |
+| **JWT** | A signed, self-contained, **time-limited** token carrying user id + role | Apps with users/logins, microservices, role-based access | You manage login + token refresh; revoking *before* expiry is harder (it's stateless) |
+| **OAuth2** | A full delegation protocol — "Log in with Google/GitHub", third-party access | Letting users sign in with another provider, or granting *scoped* access to third-party apps | Most complex to set up; usually you use a provider/library, not hand-roll it |
+
+*Rule of thumb:* start with an **API key** for a simple/internal agent (this lab's
+`develop/`). Move to **JWT** once you have real users, roles, and need expiry (this
+lab's `production/auth.py` — note the `role: user/admin` and 60-min expiry). Reach for
+**OAuth2** only when you need "sign in with X" or to delegate access on a user's behalf.
+
+**Q2 — How many requests/min should you allow for an AI agent?**
+
+There's no universal number — set it from **cost, capacity, and abuse-prevention**, and
+**tier it by user type**. Considerations:
+
+- **Each request costs real money** (an LLM call) and takes real time/CPU — unlike a
+  normal API, you can't allow thousands/sec.
+- A **human** chatting realistically sends maybe a few requests/minute; anything much
+  higher is automation or abuse.
+- **Tier it:** free/anonymous users get a low limit, paying/admin users get more — exactly
+  what this lab does: `rate_limiter_user = 10/min`, `rate_limiter_admin = 100/min`.
+
+*Practical starting points:* ~**10–20 req/min** per free user, ~**60–100/min** per
+paid/admin, and a separate **global** cap to protect total spend. Then watch real usage
+and adjust. Always pair the rate limit with a **cost guard** (`cost_guard.py`) — rate
+limiting caps *frequency*, the budget caps *total spend*; you need both.
+
+**Q3 — If an API key is leaked, how do you detect and handle it?**
+
+**Detect:**
+- **Monitor for anomalies** — sudden spikes in requests, traffic from unexpected
+  IPs/regions/times, or one key blowing through its rate limit / budget (the 429s and
+  402s in this lab are your early-warning signals).
+- **Secret scanning** — tools like GitHub secret scanning / gitleaks alert you when a key
+  appears in a public repo.
+- **Log per-key usage** so you can spot a key behaving abnormally.
+
+**Handle (in order):**
+1. **Revoke/rotate immediately** — invalidate the leaked key and issue a new one. This is
+   the #1 action; everything else is secondary.
+2. **Deploy the new key** to legitimate clients via env vars / secret manager (never
+   hardcoded — see Section 1).
+3. **Purge it from history** — remove from git history *and* rotate, because the old
+   commit/caches keep the leaked value (deleting the commit alone is not enough).
+4. **Investigate the blast radius** — check logs for what the leaked key did, and the
+   cost guard for any budget damage.
+5. **Prevent recurrence** — short-lived tokens (JWT expiry), per-key scopes/limits,
+   secret scanning in CI, and keys in a vault not in code.
+
+*Why JWT helps here:* a leaked JWT auto-expires (60 min in `auth.py`), so the damage
+window is naturally bounded — unlike a static API key that works forever until you
+notice and rotate it.
