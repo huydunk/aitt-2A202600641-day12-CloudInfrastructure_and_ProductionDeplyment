@@ -2,6 +2,42 @@
 
 Kết hợp TẤT CẢ những gì đã học trong 1 project hoàn chỉnh.
 
+---
+
+## 🚀 Live Deployment
+
+**Live URL:** https://lab12-06-production-586c.up.railway.app
+
+| Endpoint | Live check |
+|----------|-----------|
+| `GET /health` | https://lab12-06-production-586c.up.railway.app/health → `{"status":"ok",...}` |
+| `GET /` | https://lab12-06-production-586c.up.railway.app/ → API info |
+| `POST /ask` | Protected — requires `X-API-Key` header |
+
+Deployed on **Railway**, built from the multi-stage **Dockerfile** in this folder.
+Runs in `development` mode with the mock LLM (no API key required).
+
+### How it was deployed (Railway CLI, from a monorepo subfolder)
+
+```bash
+railway login
+railway init                       # project: lab12
+railway add --service lab12-06     # new service inside the project
+# In the Railway dashboard: set the service Root Directory = "06-lab-complete"
+railway up --service lab12-06      # builds 06-lab-complete/Dockerfile
+railway domain --service lab12-06  # → public URL
+```
+
+**Two gotchas worth noting** (both fixed in this folder's config):
+1. **Monorepo root directory** — `railway up` uploads from the *git repo root*, so the
+   service's **Root Directory** must be set to `06-lab-complete`, or Railway can't find
+   the Dockerfile.
+2. **`$PORT` expansion** — Railway runs the start command without a shell, so
+   `--port $PORT` is passed literally. The `railway.toml` `startCommand` is wrapped in
+   `sh -c '... --port ${PORT:-8000} ...'` so the platform's port is substituted.
+
+---
+
 ## Checklist Deliverable
 
 - [x] Dockerfile (multi-stage, < 500 MB)
@@ -16,6 +52,7 @@ Kết hợp TẤT CẢ những gì đã học trong 1 project hoàn chỉnh.
 - [x] Structured logging
 - [x] Graceful shutdown
 - [x] Public URL ready (Railway / Render config)
+- [x] **Deployed live** → https://lab12-06-production-586c.up.railway.app
 
 ---
 
